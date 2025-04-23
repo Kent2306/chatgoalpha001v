@@ -10,28 +10,23 @@ import (
 )
 
 func main() {
-	// Создаем папку для загрузок, если ее нет
-	if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
+	log.Println("Starting server...")
+
+	if err := handlers.InitTemplates(); err != nil {
+		log.Fatalf("Template initialization failed: %v", err)
+	}
+
+	if err := os.MkdirAll("uploads", 0755); err != nil {
 		log.Fatal("Failed to create uploads directory:", err)
 	}
 
-	// Инициализируем шаблоны
-	if err := handlers.InitTemplates(); err != nil {
-		log.Fatal("Error initializing templates:", err)
-	}
-
-	// Запускаем обработчик WebSocket сообщений в отдельной горутине
 	go handlers.HandleMessages()
 
-	// Создаем маршрутизатор
 	r := mux.NewRouter()
 
-	// Настраиваем обработку статических файлов
-	fs := http.FileServer(http.Dir("static"))
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
-	// Регистрируем маршруты
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusFound)
 	})
@@ -41,13 +36,13 @@ func main() {
 	r.HandleFunc("/chat", handlers.AuthMiddleware(handlers.ChatHandler))
 	r.HandleFunc("/ws", handlers.AuthMiddleware(handlers.HandleConnections))
 	r.HandleFunc("/upload", handlers.AuthMiddleware(handlers.UploadHandler)).Methods("POST")
-	r.HandleFunc("/toggle-theme", handlers.ToggleThemeHandler).Methods("POST")
+	r.HandleFunc("/clear-chat", handlers.AuthMiddleware(handlers.ClearChatHandler)).Methods("POST")
+	r.HandleFunc("/online-users", handlers.AuthMiddleware(handlers.OnlineUsersHandler)).Methods("GET")
 
-	// Запускаем сервер
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	log.Printf("Server started on http://localhost:%s", port)
+	log.Printf("Server running on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }

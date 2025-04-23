@@ -1,59 +1,233 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Chat</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат | SunSet</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Стили для модального окна */
+        .welcome-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: var(--sidebar-bg);
+            margin: 10% auto;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: modalFadeIn 0.4s;
+        }
+
+        @keyframes modalFadeIn {
+            from {opacity: 0; transform: translateY(-50px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-header h2 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .modal-body {
+            padding: 15px 0;
+            line-height: 1.7;
+        }
+
+        .modal-body p {
+            margin-bottom: 15px;
+            padding-left: 10px;
+            border-left: 3px solid var(--primary-color);
+        }
+
+        .modal-footer {
+            text-align: right;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .modal-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .modal-btn:hover {
+            background-color: #0077b3;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+
+        .warning-icon {
+            color: #ff9800;
+            font-size: 1.8rem;
+        }
+    </style>
 </head>
-<body class="{{.Theme}}">
-    <div class="app">
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div class="search-box">
-                    <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Search">
-                </div>
-            </div>
-            <div class="chat-list">
-                <div class="chat-list-item active">
-                    <div class="avatar">{{.Username | firstChar}}</div>
-                    <div class="chat-info">
-                        <div class="chat-name">{{.Username}}</div>
-                        <div class="last-message">Click to join chat</div>
-                    </div>
-                </div>
-            </div>
-            <div class="theme-toggle">
-                <button id="theme-toggle">
-                    <i class="fas fa-moon"></i>
-                    <span>Toggle Theme</span>
-                </button>
+<body>
+<!-- Модальное окно приветствия -->
+<div id="welcome-modal" class="welcome-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <i class="fas fa-exclamation-triangle warning-icon"></i>
+            <h2>Важное уведомление</h2>
+        </div>
+        <div class="modal-body">
+            <p>Добро пожаловать в <strong>SunSet</strong> — анонимный чат!</p>
+            <p>Администрация <strong>не несёт ответственности</strong> за содержание переписки между пользователями.</p>
+            <p>Мы <strong>категорически осуждаем</strong> и не допускаем любые незаконные действия, включая распространение запрещённых материалов.</p>
+            <p>Используя этот чат, вы подтверждаете, что вам <strong>исполнилось 18 лет</strong> и вы соглашаетесь с нашими правилами.</p>
+        </div>
+        <div class="modal-footer">
+            <button id="accept-btn" class="modal-btn">Я понимаю и принимаю условия</button>
+        </div>
+    </div>
+</div>
+
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="user-profile">
+                <div class="avatar">{{.Username | firstChar}}</div>
+                <div class="user-name">{{.Username}}</div>
             </div>
         </div>
-        <div class="chat-container">
-            <div class="chat-header">
-                <div class="chat-title">General Chat</div>
-                <div class="chat-actions">
-                    <i class="fas fa-ellipsis-v"></i>
-                </div>
+
+        <div class="online-users-section">
+            <div class="online-header">
+                <i class="fas fa-users"></i>
+                <span>Онлайн (<span id="online-count">{{.OnlineCount}}</span>)</span>
             </div>
-            <div id="messages" class="messages"></div>
-            <div class="message-input">
-                <div class="input-actions">
-                    <label for="file-input" class="file-upload">
-                        <i class="fas fa-paperclip"></i>
-                        <input type="file" id="file-input" style="display: none;">
-                    </label>
-                </div>
-                <input type="text" id="message" placeholder="Write a message..." autocomplete="off">
-                <button id="send-button"><i class="fas fa-paper-plane"></i></button>
-            </div>
+            <div class="online-list" id="online-list"></div>
+        </div>
+
+        <div class="sidebar-footer">
+            <button id="clear-chat" class="danger-button">
+                <i class="fas fa-trash-alt"></i>
+                <span>Очистить чат</span>
+            </button>
         </div>
     </div>
 
-    <script>
-        const username = "{{.Username}}";
-    </script>
-    <script src="/static/script.js"></script>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-title">
+                <i class="fas fa-sun" style="color: #FFA500;"></i> SunSet
+            </div>
+        </div>
+
+        <div id="messages" class="messages">
+            {{range .Messages}}
+            <div class="message {{if eq .Username $.Username}}outgoing{{else}}incoming{{end}}">
+                {{if .IsSystem}}
+                <div class="system-message">{{.Text}}</div>
+                {{else}}
+                <div class="message-header">
+                    <span class="message-username">{{.Username}}</span>
+                    <span class="message-time">{{.Time}}</span>
+                </div>
+                {{if .IsFile}}
+                {{if eq .FileType "image"}}
+                <div class="file-message-image">
+                    <img src="{{.Text}}" class="image-preview">
+                    <a href="{{.Text}}" download class="download-btn">
+                        <i class="fas fa-download"></i>
+                    </a>
+                </div>
+                {{else}}
+                <div class="file-message">
+                    <a href="{{.Text}}" download>{{.FileName}}</a>
+                </div>
+                {{end}}
+                {{else}}
+                <div class="message-content">{{.Text}}</div>
+                {{end}}
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+
+        <div class="message-input">
+            <div class="input-actions">
+                <label for="file-input" class="file-upload">
+                    <i class="fas fa-paperclip"></i>
+                    <input type="file" id="file-input" style="display: none;">
+                </label>
+            </div>
+            <input type="text" id="message" placeholder="Введите сообщение..." autocomplete="off">
+            <button id="send-button">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const username = "{{.Username}}";
+
+    // Показываем модальное окно при первом посещении
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('welcome-modal');
+        const acceptBtn = document.getElementById('accept-btn');
+
+        // Проверяем, не подтверждал ли уже пользователь условия
+        if (!localStorage.getItem('termsAccepted')) {
+            modal.style.display = 'block';
+
+            // Блокируем прокрутку страницы
+            document.body.style.overflow = 'hidden';
+
+            // Обработчик кнопки принятия
+            acceptBtn.addEventListener('click', function() {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+                localStorage.setItem('termsAccepted', 'true');
+
+                // Отправляем системное сообщение
+                const ws = new WebSocket(`ws://${window.location.host}/ws`);
+                ws.onopen = function() {
+                    ws.send(JSON.stringify({
+                        text: "Пользователь " + username + " принял правила чата",
+                        isSystem: true
+                    }));
+                };
+            });
+        }
+
+        // Запрещаем закрывать модальное окно по клику вне его
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                e.stopPropagation();
+            }
+        });
+    });
+</script>
+<script src="/static/script.js"></script>
 </body>
 </html>

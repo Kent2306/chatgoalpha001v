@@ -1,18 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход | SunSet</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="light">
-    <div class="auth-container">
-        <h1>Telegram-like Chat</h1>
-        <form method="POST" class="auth-form">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Login</button>
-        </form>
-        <p>Don't have an account? <a href="/register">Register</a></p>
+<body>
+<div class="auth-container">
+    <div class="auth-sidebar">
+        <div class="auth-header">
+            <h1><i class="fas fa-sun"></i> SunSet</h1>
+            <p>Добро пожаловать в наш уютный чат</p>
+        </div>
     </div>
+
+    <div class="auth-form-container">
+        <form method="POST" class="auth-form">
+            <h2>Вход в аккаунт</h2>
+
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" name="username" placeholder="Имя пользователя" required>
+            </div>
+
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" name="password" placeholder="Пароль" required>
+            </div>
+
+            <button type="submit" class="auth-button">
+                <i class="fas fa-sign-in-alt"></i> Войти
+            </button>
+
+            <div class="auth-footer">
+                Нет аккаунта? <a href="/register">Зарегистрироваться</a>
+            </div>
+        </form>
+    </div>
+</div>
 </body>
 </html>

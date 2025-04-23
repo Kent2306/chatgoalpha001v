@@ -1,43 +1,77 @@
 package handlers
 
 import (
-	"context"
+	"log"
 	"net/http"
 	"simple-chat/db"
+	"simple-chat/models"
+	"time"
 )
 
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("session_token")
-		if err != nil {
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
+func ChatHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
 
-		session, exists := GetSession(cookie.Value)
-		if !exists {
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
+	session, exists := GetSession(cookie.Value)
+	if !exists {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
 
-		ctx := context.WithValue(r.Context(), "userID", session.UserID)
-		next.ServeHTTP(w, r.WithContext(ctx))
+	user, err := db.GetUserByID(session.UserID)
+	if err != nil {
+		log.Printf("User not found: %v", err)
+		http.Error(w, "User not found", http.StatusInternalServerError)
+		return
+	}
+
+	mu.RLock()
+	onlineCount := len(wsClients)
+	mu.RUnlock()
+
+	messages := db.GetMessages()
+
+	data := struct {
+		Username    string
+		OnlineCount int
+		Messages    []models.Message
+	}{
+		Username:    user.Username,
+		OnlineCount: onlineCount,
+		Messages:    messages,
+	}
+
+	err = tmpl.ExecuteTemplate(w, "chat.html", data)
+	if err != nil {
+		log.Printf("Template error: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
-func ChatHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("userID").(int)
-	user, _ := db.GetUserByID(userID)
+func ClearChatHandler(w http.ResponseWriter, r *http.Request) {
+	db.ClearChat()
 
-	data := struct {
-		Username string
-		Theme    string
-	}{
-		Username: user.Username,
-		Theme:    GetTheme(),
+	mu.Lock()
+	for client := range wsClients {
+		if err := client.WriteJSON(map[string]string{
+			"action": "clear_chat",
+		}); err != nil {
+			log.Printf("Error sending clear command: %v", err)
+			client.Close()
+			delete(wsClients, client)
+		}
+	}
+	mu.Unlock()
+
+	wsBroadcast <- models.Message{
+		Username:  "System",
+		Text:      "Чат был очищен",
+		IsSystem:  true,
+		Timestamp: time.Now(),
 	}
 
-	if err := tmpl.ExecuteTemplate(w, "chat.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	w.WriteHeader(http.StatusOK)
 }

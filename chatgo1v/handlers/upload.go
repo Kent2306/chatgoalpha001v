@@ -3,19 +3,26 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"simple-chat/db"
 	"simple-chat/models"
+	"strings"
 	"time"
 )
 
-func UploadHandler(w http.ResponseWriter, r *http.Request) {
-	// Парсим multipart форму (макс. 10MB)
-	r.ParseMultipartForm(10 << 20)
+var imageTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/gif":  true,
+	"image/webp": true,
+}
 
-	// Получаем файл из запроса
+func UploadHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(32 << 20) // 32MB max
+
 	file, handler, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "Error retrieving file", http.StatusBadRequest)
@@ -23,39 +30,46 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Создаем уникальное имя файла
+	fileType := "other"
+	mimeType := mime.TypeByExtension(filepath.Ext(handler.Filename))
+	if strings.HasPrefix(mimeType, "image/") {
+		fileType = "image"
+	} else if strings.HasPrefix(mimeType, "video/") {
+		fileType = "video"
+	} else if strings.HasPrefix(mimeType, "audio/") {
+		fileType = "audio"
+	}
+
 	ext := filepath.Ext(handler.Filename)
 	newFilename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	filePath := filepath.Join("uploads", newFilename)
 
-	// Создаем новый файл на сервере
-	dst, err := os.Create("uploads/" + newFilename)
+	dst, err := os.Create(filePath)
 	if err != nil {
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
 		return
 	}
 	defer dst.Close()
 
-	// Копируем содержимое файла
 	if _, err := io.Copy(dst, file); err != nil {
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
 		return
 	}
 
-	// Получаем информацию о пользователе
 	cookie, _ := r.Cookie("session_token")
 	session, _ := GetSession(cookie.Value)
 	user, _ := db.GetUserByID(session.UserID)
 
-	// Создаем сообщение о загрузке файла
 	msg := models.Message{
-		Username: user.Username,
-		Text:     fmt.Sprintf("/uploads/%s", newFilename),
-		Time:     time.Now().Format("15:04"),
-		IsFile:   true,
-		FileName: handler.Filename,
+		Username:  user.Username,
+		Text:      "/uploads/" + newFilename,
+		Time:      time.Now().Format("15:04"),
+		IsFile:    true,
+		FileName:  handler.Filename,
+		FileType:  fileType,
+		Timestamp: time.Now(),
 	}
 
-	// Отправляем сообщение в канал WebSocket
 	wsBroadcast <- msg
 	w.WriteHeader(http.StatusOK)
 }

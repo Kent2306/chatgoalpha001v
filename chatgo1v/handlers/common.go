@@ -1,42 +1,31 @@
 package handlers
 
 import (
-	"html/template"
-	"net/http"
-	"sync"
-	"time"
-
-	"simple-chat/models"
-
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"html/template"
+	"net/http"
+	"simple-chat/models"
+	"sync"
+	"time"
 )
 
-// Глобальные переменные пакета
 var (
-	// Шаблоны
 	tmpl *template.Template
+	mu   sync.RWMutex
 
-	// Сессии пользователей
-	sessions = make(map[string]models.Session)
-	mu       sync.RWMutex
-
-	// Тема интерфейса
-	theme = "light"
-
-	// WebSocket
-	wsClients   = make(map[*websocket.Conn]string)
-	wsBroadcast = make(chan models.Message)
-	wsUpgrader  = websocket.Upgrader{
+	wsUpgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 	}
+	wsClients   = make(map[*websocket.Conn]string)
+	wsBroadcast = make(chan models.Message)
+	sessions    = make(map[string]models.Session)
 )
 
-// InitTemplates инициализирует HTML шаблоны
 func InitTemplates() error {
 	var err error
 	tmpl = template.Must(template.New("").Funcs(template.FuncMap{
@@ -50,50 +39,22 @@ func InitTemplates() error {
 	return err
 }
 
-// CreateSession создает новую сессию пользователя
 func CreateSession(userID int) models.Session {
 	mu.Lock()
 	defer mu.Unlock()
 
-	token := uuid.New().String()
 	session := models.Session{
 		UserID:    userID,
-		Token:     token,
+		Token:     uuid.New().String(),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-
-	sessions[token] = session
+	sessions[session.Token] = session
 	return session
 }
 
-// GetSession возвращает сессию по токену
 func GetSession(token string) (models.Session, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
 	session, exists := sessions[token]
 	return session, exists
-}
-
-// ToggleTheme переключает между светлой и темной темой
-func ToggleTheme() {
-	mu.Lock()
-	defer mu.Unlock()
-	if theme == "light" {
-		theme = "dark"
-	} else {
-		theme = "light"
-	}
-}
-
-// GetTheme возвращает текущую тему
-func GetTheme() string {
-	mu.RLock()
-	defer mu.RUnlock()
-	return theme
-}
-
-// ToggleThemeHandler обрабатывает запрос на смену темы
-func ToggleThemeHandler(w http.ResponseWriter, r *http.Request) {
-	ToggleTheme()
-	w.WriteHeader(http.StatusOK)
 }
